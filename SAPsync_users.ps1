@@ -128,7 +128,7 @@ function ParseUser() {
 		if ($sap.data.Uvolen -eq "1") {
 			#Уволенных увольняем
 			Log($user.sAMAccountname+ ": user dissmissed! Deactivation needed!")
-			c:\tools\usermanagement\usr_dismiss.cmd $user.sAMAccountname
+			#c:\tools\usermanagement\usr_dismiss.cmd $user.sAMAccountname
 		} else {
 			#Грузим Ф И О по оттдельности
 			$fn=($sap.data.Vorna).trim()
@@ -224,6 +224,26 @@ function ParseUser() {
 				$user.telephoneNumber=$correctedPhone
 				$needUpdate = $true
 			}
+
+			#http://inventory.yamalgazprom.local/web/api/phones/search-by-user?id=%D0%90%D0%9E%D0%97%D0%9F-00960
+			#Запрашиваем номер телефона, привязанный к пользователю в Инвентаризации
+			$webReqPh="$($inventory_RESTapi_URL)/phones/search-by-user?id=$($sap.data.id)"
+			#$webReqPh
+			try { 
+				$sapPh = ((invoke-WebRequest $webReqPh -ContentType "text/plain; charset=utf-8" -UseBasicParsing).content | convertFrom-Json)
+				#$sapPh
+				if (
+					($sapPh.length -gt 2 ) -and 
+					($sapPh -ne $user.Pager)
+				) {
+					Log($user.sAMAccountname+": got Phone ["+$user.pager+"] instead of ["+$sapPh+"]")
+					$user.pager=$sapPh
+					$needUpdate = $true
+				}
+			} catch {
+				$err=$_.Exception.Response.StatusCode.Value__
+			}
+
 
 			if ($needUpdate) {
 				$user 
