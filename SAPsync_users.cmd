@@ -1,1 +1,1 @@
-powershell.exe -noprofile -executionpolicy bypass -file c:\Tools\Usermanagement\sapSync\SAPsync_users.ps1
+powershell.exe -noprofile -executionpolicy bypass -file c:\Tools\Usermanagement\sapSync\SAPsync_users_v2.ps1

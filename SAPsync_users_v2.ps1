@@ -12,6 +12,9 @@
 # - Подразделение
 # - Организация
 # 
+
+# v2.2 + Учет даты увольния при увольнении
+# v2.1 + Обработка нескольких телефонов через запятую, ограничение длины полей
 # v2.0 + Поддержка нескольких организаций
 #        Убрана обертка вокруг БД Инвентаризации для взаимодействия с этими скриптами
 #        Теперь все взаимодействие ведется через каноничный REST API            
@@ -25,8 +28,15 @@
 #      Пользователя можно искать указав в качестве имени табельный номер
 # v1.0 Initial commit
 
+#как посмотреть лимит на длину поля? например для mobile вот так:
+#dsquery * "cn=Schema,cn=Configuration,dc=yamalgazprom,dc=local" -Filter "(LDAPDisplayName=mobile)" -attr rangeUpper
+
+#у нас были затыки с полями
+#mobile (64)
+#title (128)
 
 . "$($PSScriptRoot)\..\config.priv.ps1"
+. "$($PSScriptRoot)\..\lib_funcs.ps1"
 
 
 #выводит сообщение в лог файл
@@ -43,56 +53,6 @@ function Log()
 }
 
 
-function correctMobile() {
-	param (
-		[string]$number
-	)
-	$original=$number
-
-	#убираем пробелы
-	$number=$number.Replace(' ','').Replace('-','').Replace('.','')
-	#Log($original+": clean ["+$number+"]")
-
-	#проверяем что цифр 11	
-	if ( -not ($number.Replace('+','').Replace('(','').Replace(')','').Length -eq 11)) {
-		#Log($original+": numbers ["+$number.Replace('+','').Replace('(','').Replace(')','')+"]")
-		#Log($original+": numberscount ["+$number.Replace('+','').Replace('(','').Replace(')','').Length+"]")
-		return $original
-	}
-	
-	#8XXX -> 7XXX
-	if ($number.Substring(0,1) -eq "8") {
-		$number="7"+$number.Substring(1)
-	}
-
-	#7XXX -> +7XXX
-	if ($number.Substring(0,1) -eq "7") {
-		$number="+"+$number
-	}
-	#Log($original+": country correct ["+$number+"]")
-
-	#проверяем что скобочки есть и они расставлены правильно
-	$leftBracket=$number.IndexOf("(")
-	$rightBracket=$number.IndexOf(")")
-	if ( ($leftBracket -lt 0) -or ($rightBracket -lt 0) -or ($rightBracket -lt $leftBracket) ) {
-		$number=$number.Replace('(','').Replace(')','')
-		$countryCode=$number.Substring(0,2);
-		$cityCode=$number.Substring(2,3);
-		$localCode=$number.Substring(5);
-		$number=$countryCode+'('+$cityCode+')'+$localCode
-		$rightBracket=$number.IndexOf(")")
-	}
-
-	#Log($original+": brackets correct ["+$number+"]")
-
-	#проверяем знак тире
-	$minusLeft=$number.Substring(0,$rightBracket+4)
-	$minusRight=$number.Substring($rightBracket+4)
-	
-	return $minusLeft+'-'+$minusRight
-
-}
-
 #запись данных о пользователе в БД
 function pushUserData() {
 	param
@@ -103,7 +63,7 @@ function pushUserData() {
 	)
 	$value=[System.Web.HttpUtility]::UrlEncode($value)
 
-    $params = @{$field=$value;}
+	$params = @{$field=$value;}
 
 	try { 
         #Invoke-WebRequest -Uri "$($inventory_RESTapi_URL)/users/$($id)" -Method POST -Body $params
@@ -138,6 +98,8 @@ function FindUser() {
         }
         #запрос пользователя будет по организации и табельному
         $reqParams="num=$($user.employeeNumber)&org=$($org_id)"
+	#во время переходного перидоа закосячили табельники поэтому разок надо сделать так
+        $reqParams="login=$($user.sAMAccountname)&org=$($org_id)"
     } else {
         $reqParams="name=$($user.displayName)"
     }
@@ -162,14 +124,27 @@ function ParseUser() {
 	#Выставляем флажки
 	#Обновлять пользоватея в АД не надо
 	$needUpdate = $false
-	#Переименовывать пользоватея в АД не надо
+	#Переименовывать пользователя в АД не надо
 	$needRename = $false
+	#Увольнять пользователя в АД не надо
+	$needDismiss = $false
 
 	
 	$sap = findUser($user)
 	#Если пользователь нашелся
 	if ( -not ($sap -eq "error")) {
+		
 		if ($sap.Uvolen -eq "1") {
+			#смотрим когда уволен
+			if ($sap.resign_date.Length -gt 0) {
+				$resign_date=[datetime]::parseexact($sap.resign_date, 'dd.MM.yyyy', $null)
+				#уже уволен?
+				if ((Get-Date) -gt $resign_date) {
+					$needDismiss = $true
+				}
+			}
+		}
+		if ($needDismiss) {
 			#Уволенных увольняем
 			Log($user.sAMAccountname+ ": user dissmissed! Deactivation needed!")
 			#c:\tools\usermanagement\usr_dismiss.cmd $user.sAMAccountname
@@ -232,16 +207,21 @@ function ParseUser() {
 			}
 
             #Должность
+			$title=$sap.Doljnost
+			if ($title.Length -gt 128) {
+				#ограничение длины поля
+				$title=$title.Substring(0,128)
+			}
 			if (
-				($sap.Doljnost.Length -gt 0) -and
-				($user.title -ne $sap.Doljnost)
+				($title -gt 0) -and
+				($user.title -ne $title)
 			){
-				Log($user.sAMAccountname+": got Title ["+$user.title+"] instead of ["+$sap.Doljnost+"]")
-				$user.title=$sap.Doljnost
+				Log($user.sAMAccountname+": got Title ["+$user.title+"] instead of ["+$title+"]")
+				$user.title=$title
 				$needUpdate = $true
 			}
 
-            #табельный номмер
+            #табельный номер
 			if ($user.EmployeeNumber -ne $sap.employee_id ){
 				Log($user.sAMAccountname+": got Numbr ["+$user.EmployeeNumber+"] instead of ["+$sap.employee_id+"]")
 				$user.EmployeeNumber=$sap.employee_id
@@ -254,17 +234,17 @@ function ParseUser() {
 				$needUpdate = $true
 			}
 
-			#$correctedMobile=correctMobile($sap.data.Mobile)
+			#$correctedMobile=correctMobile($sap.Mobile)
 			#отключаем корректировку номера, т.к. во первых в ямале несколько номеров вбито
 			#во вторых они частично приведены к одному виду уже в БД
 			#в третьих там встречаются МН номера
-			$correctedMobile=$sap.Mobile
+			$correctedMobile= correctPhonesList($sap.Mobile)
 			if ([string]$user.mobile -ne [string]$correctedMobile) {
 				#для поля мобильного делаем обработку на случай если оно стало пустым, т.к. это реальная ситуация
 				if ($correctedMobile -eq "") {
 					Log($user.sAMAccountname+": got incorrect mobile ["+$user.mobile+"] instead of [empty]")
 					$tmpUser = Get-ADUser $user.DistinguishedName
-					#Set-AdUser $tmpUser -Clear mobile
+					Set-AdUser $tmpUser -Clear mobile
 				} else {
 					Log($user.sAMAccountname+": got incorrect mobile ["+$user.mobile+"] instead of ["+$correctedMobile+"]")
 					$user.mobile=$correctedMobile
@@ -301,13 +281,13 @@ function ParseUser() {
 
 			if ($needUpdate) {
 				$user 
-				#Set-AdUser -Instance $user 
+				Set-AdUser -Instance $user 
 				Log($user.sAMAccountname+": changes pushed to AD")
 				#exit(0)
 			}
 			if ($needRename) {
 				Log($user.sAMAccountname+": AdObject renaming to "+$sap.Ename)
-				#Rename-AdObject -Identity $user -Newname $sap.Ename
+				Rename-AdObject -Identity $user -Newname $sap.Ename
 				Log($user.sAMAccountname+": AdObject renamed to "+$sap.Ename)
 			}
 			$webWriteReq="$($inventory_write_api_URL)&IPernr=$($sap.data.Pernr)"
