@@ -30,6 +30,12 @@ $f_OUDN="OU=Уволенные,DC=domain,DC=local"
 $write_ad=$false
 #разрешить автоматическое увольнение при синхронизации
 $auto_dismiss=$false
+#исключить автоматическое уольнение этих логинов:
+$auto_dismiss_exclude=@(
+	'pupkin.v',
+	'lohankin.v', 
+	'lenin.v'
+)
 
 #URL сервиса запросов в таблицу пользователей САП
 $inventory_RESTapi_URL="http://inventory.domain.local/web/api"
@@ -50,6 +56,7 @@ $sync_logfile="C:\Joker\Works\PS\user_management\SAPsync\log\user_sync.log"
 
 
 ## История изменений
+v3.1 + Исключения сотрудников из автоувольнения
 v3.0 + Режим только чтения для АД
      + Режим только чтение для БД инвентаризации
      + Опции для выбора источника телефонного номера
