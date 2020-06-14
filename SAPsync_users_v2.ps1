@@ -1,5 +1,33 @@
 #Скрипт управление пользователем в АД:
 #
+#в качестве параметра принимает JSON объект по этому пользователю
+#
+#ищет переданного пользователя в АД сначала по табельному номеру,
+#затем по ФИО
+#
+#Синхронизирует поля:
+# - ФИО
+# - Табельный номер
+# - Должность
+# - Подразделение
+# - Организация
+# 
+
+# v2.2 + Учет даты увольния при увольнении
+# v2.1 + Обработка нескольких телефонов через запятую, ограничение длины полей
+# v2.0 + Поддержка нескольких организаций
+#        Убрана обертка вокруг БД Инвентаризации для взаимодействия с этими скриптами
+#        Теперь все взаимодействие ведется через каноничный REST API            
+# v1.5 + Городской номер приводится к тому же формату, что и мобильный
+# v1.4 + Синхронизация почты, внутреннего номера телефона, мобильного номера телефона 
+#        в сторону САП 
+#      + мобильные телефонные номера сначала приводятся к формату +7(ХХХ)ХХХ-ХХХХ
+# v1.3 Хранение табельного номера переведено на EmployeeID
+# v1.2 Улучшена корректировака имен. В т.ч. переименование самого объекта
+# v1.1 Улучшена корректировка имени. 
+#      Пользователя можно искать указав в качестве имени табельный номер
+# v1.0 Initial commit
+
 #как посмотреть лимит на длину поля? например для mobile вот так:
 #dsquery * "cn=Schema,cn=Configuration,dc=yamalgazprom,dc=local" -Filter "(LDAPDisplayName=mobile)" -attr rangeUpper
 
@@ -91,7 +119,7 @@ function FindUser() {
     }
 
 
-    $webReq="$($inventory_RESTapi_URL)/users/view?$($reqParams)&expand=ln,mn,fn"
+    $webReq="$($inventory_RESTapi_URL)/users/view?$($reqParams)&expand=ln,mn,fn,orgStruct"
     #Log($webReq)
 
     #пробуем найти нашего сотрудника	
@@ -148,10 +176,18 @@ function ParseUser() {
 		}
 		if ($needDismiss) {
 			#Уволенных увольняем
-			Log($user.sAMAccountname+ ": user dissmissed! Deactivation needed!")
-            if ($auto_dismiss) {
-			    c:\tools\usermanagement\usr_dismiss.cmd $user.sAMAccountname
-            }
+			#проверяем исключения уволенных
+			if ($auto_dismiss_exclude -eq $user.sAMAccountname) {
+				Log($user.sAMAccountname+ ": user dissmissed! Deactivation disabled (exclusion list)!")
+			} else {
+				if ($auto_dismiss) {
+					Log($user.sAMAccountname+ ": user dissmissed! Deactivating")
+					#c:\tools\usermanagement\usr_dismiss.cmd $user.sAMAccountname
+				} else {
+					Log($user.sAMAccountname+ ": user dissmissed! Deactivation needed!")
+				}
+			}
+			
 		} else {
 			#Log($user.sAMAccountname+ ": user active")
 			#Грузим Ф И О по оттдельности
