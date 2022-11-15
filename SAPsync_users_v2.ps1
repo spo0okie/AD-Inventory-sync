@@ -182,7 +182,7 @@ function ParseUser() {
 			} else {
 				if ($auto_dismiss) {
 					Log($user.sAMAccountname+ ": user dissmissed! Deactivating")
-					#c:\tools\usermanagement\usr_dismiss.cmd $user.sAMAccountname
+					Start-Process -FilePath $dismiss_script -ArgumentList $user.sAMAccountname -NoNewWindow
 				} else {
 					Log($user.sAMAccountname+ ": user dissmissed! Deactivation needed!")
 				}
@@ -269,14 +269,22 @@ function ParseUser() {
 				$needUpdate = $true
 			}
 			
-            #ID организации
+			
+            #ID организации (если мы работаем с разными, иначе тоже в это поле табельный кладем)
             if ($mutiorg_support) {
 			    if ($user.EmployeeID -ne $sap.org_id ){
 				    Log($user.sAMAccountname+": got orgID ["+$user.EmployeeID+"] instead of ["+$sap.org_id+"]")
 				    $user.EmployeeID=$sap.org_id
 				    $needUpdate = $true
 			    }
-            }
+            } else {
+				if ($user.EmployeeID -ne $sap.employee_id ){
+					Log($user.sAMAccountname+": got Numbr ["+$user.EmployeeID+"] instead of ["+$sap.employee_id+"]")
+					$user.EmployeeID=$sap.employee_id
+					$needUpdate = $true
+				}
+			}
+
 
 
             if ($mobile_from_SAP) {
