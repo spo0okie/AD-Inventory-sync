@@ -38,8 +38,8 @@ mkdir libs.ps1
 cd libs.ps1
 git clone https://github.com/spo0okie/ps1.libs.git .
 cd ..
-mkdir ad-inventory-sync\user
-cd ad-inventory-sync\user
+mkdir ad-inventory-sync
+cd ad-inventory-sync
 git clone https://github.com/spo0okie/AD-Inventory-sync.git .
 ad-to-inventory.cmd
 ```
