@@ -26,6 +26,9 @@ $ad2inventory_OUDNs=@(
 
 #адрес REST API инвентаризации
 $inventory_RESTapi_URL="http://inventory.domain.local/web/api"
+#учетные данные для авторизации скрипта в инвентори (с правами редактора)
+$inventory_user_login="ad_inventory_sync"
+$inventory_user_password="ad_inventory_sync"
 
 #писать ли изменения в БД инвентаризации
 $write_inventory=$false
