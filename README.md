@@ -18,8 +18,12 @@
 
 Инклудит файл ..\config.priv.ps1 следующего содержания
 ```powershell
-#подразделение где хранятся пользователи
-$u_OUDN="OU=Пользователи,DC=domain,DC=local"
+#подразделения где хранятся пользователи
+$ad2inventory_OUDNs=@(
+	"OU=Organization1,OU=Users,DC=domain,DC=local",
+	"OU=Organization2,OU=Users,DC=domain,DC=local"
+);
+
 #адрес REST API инвентаризации
 $inventory_RESTapi_URL="http://inventory.domain.local/web/api"
 
@@ -27,7 +31,7 @@ $inventory_RESTapi_URL="http://inventory.domain.local/web/api"
 $write_inventory=$false
 
 #логфайл
-$logfile="C:\Joker\Works\PS\ad-inventory-sync\user.log"
+$logfile="C:\Tools\ad-inventory-sync\user.log"
 ```
 
 ## Установка

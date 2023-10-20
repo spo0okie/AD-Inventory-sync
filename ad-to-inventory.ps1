@@ -237,17 +237,22 @@ function ParseUser() {
 
 Import-Module ActiveDirectory
 
+#Пользователь передан конкретный
 if ($args.Length -gt 0) {
-	$users = Get-ADUser $args[0] -properties Name,cn,sn,givenName,DisplayName,sAMAccountname,company,department,title,employeeNumber,employeeID,mail,pager,mobile,telephoneNumber,adminDescription,enabled
-} else {
-	$users = Get-ADUser -Filter * -SearchBase $u_OUDN -properties Name,cn,sn,givenName,DisplayName,sAMAccountname,company,department,title,employeeNumber,employeeID,mail,pager,mobile,telephoneNumber,adminDescription,enabled
-}
-
-$u_count = $users | measure 
-Write-Host "Users to sync: " $u_count.Count
-
-foreach($user in $users) {
-    #$user
+	$user = Get-ADUser $args[0] -properties Name,cn,sn,givenName,DisplayName,sAMAccountname,company,department,title,employeeNumber,employeeID,mail,pager,mobile,telephoneNumber,adminDescription,enabled
 	ParseUser ($user)
-    #exit
+} else {
+#Ничего не передано, обходим все OU
+    foreach ($OUDN in $ad2inventory_OUDNs) {
+		$users = Get-ADUser -Filter * -SearchBase $OUDN -properties Name,cn,sn,givenName,DisplayName,sAMAccountname,company,department,title,employeeNumber,employeeID,mail,pager,mobile,telephoneNumber,adminDescription,enabled
+		$u_count = $users | measure 
+		Write-Host "Users to sync in $($OUDN): " $u_count.Count
+
+		foreach($user in $users) {
+    		#$user
+			ParseUser ($user)
+    		#exit
+		}
+	}
 }
+
