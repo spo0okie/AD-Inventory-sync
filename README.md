@@ -52,6 +52,7 @@ ad-to-inventory.cmd
 ```
 
 ## История изменений
+v1.1 Поддержка некскольких OUDN на вход
 v1.0 Initial commit 
      На базе синхронизации Inventory->AD
 
